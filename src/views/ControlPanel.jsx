@@ -12,42 +12,90 @@ function ControlPanel() {
   const [gasThreshold, setGasThreshold] = useState(300);
   const [flameThreshold, setFlameThreshold] = useState(1);
 
-  // Ghi trạng thái
-  const updateDevice = async (device, value) => {
-    await set(ref(db, `control/${device}`), value);
-    await push(ref(db, "logs"), {
-      timestamp: new Date().toLocaleString(),
-      message: `${device} set to ${value}`,
-    });
+  // Cập nhật bật/tắt quạt và máy bơm
+  const handleUpdateDevice = async (device, value) => {
+    try {
+      await set(ref(db, `control/${device}`), value);
+
+      if (value == true) {
+        value = "bật";
+      } else {
+        value = "tắt";
+      }
+
+      await push(ref(db, "logs"), {
+        timestamp: new Date().toLocaleString(),
+        message: `${device} đã được ${value}`,
+      });
+    } catch (error) {
+      console.error("Lỗi khi cập nhật hoặc ghi log:", error);
+    }
   };
 
-  const handleUpdate = (e) => {
+  // Cập nhật trạng thái hệ thống
+  const handleUpdateState = async (value) => {
+    try {
+      await set(ref(db, `system/state`), value);
+
+      await push(ref(db, "logs"), {
+        timestamp: new Date().toLocaleString(),
+        message: `Trạng thái hệ thống đã được chuyển sang ${value}`,
+      });
+    } catch (error) {
+      console.error("Lỗi khi cập nhật hoặc ghi log:", error);
+    }
+  };
+
+  // Cập nhật ngưỡng cảm biến
+  const handleUpdateThresholds = async (e) => {
     e.preventDefault();
-    // Gửi threshold mới về server hoặc lưu lại tuỳ logic bạn
-    console.log("Ngưỡng Gas:", gasThreshold);
-    console.log("Ngưỡng Lửa:", flameThreshold);
-    // Có thể thêm logic gọi API để lưu lại giá trị
+
+    try {
+      await set(ref(db, "/system/config/thresholds/gas"), Number(gasThreshold));
+      await set(
+        ref(db, "/system/config/thresholds/flame"),
+        Number(flameThreshold)
+      );
+
+      // Ghi log sau khi cập nhật
+      await push(ref(db, "logs"), {
+        timestamp: new Date().toLocaleString(),
+        message: `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}`,
+      });
+
+      alert("✅ Cập nhật và lưu log thành công!");
+    } catch (error) {
+      console.error("Lỗi khi cập nhật hoặc ghi log:", error);
+    }
   };
 
   // Lấy trạng thái thiết bị
   useEffect(() => {
     const fanRef = ref(db, "control/fan");
     const pumpRef = ref(db, "control/pump");
-    const statusRef = ref(db, "control/setState");
+    const statusRef = ref(db, "system/state");
     const gasRef = ref(db, "sensors/gas_value");
     const flameRef = ref(db, "sensors/flame_value");
     const logsRef = ref(db, "logs");
+    const gasThresholdRef = ref(db, "system/config/thresholds/gas");
+    const flameThresholdRef = ref(db, "system/config/thresholds/flame");
 
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || false));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || false));
     onValue(statusRef, (snapshot) => setStatus(snapshot.val() || 0));
     onValue(gasRef, (snapshot) => setGasValue(snapshot.val() || 0));
-    onValue(flameRef, (snapshot) => setFlameValue(snapshot.val() || false));
+    onValue(flameRef, (snapshot) => setFlameValue(snapshot.val() || 0));
     onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
       const logsArray = Object.values(data).reverse();
       setLogs(logsArray);
     });
+    onValue(gasThresholdRef, (snapshot) =>
+      setGasThreshold(snapshot.val() || 0)
+    );
+    onValue(flameThresholdRef, (snapshot) =>
+      setFlameThreshold(snapshot.val() || 0)
+    );
   }, []);
 
   return (
@@ -58,13 +106,13 @@ function ControlPanel() {
         <div style={styles.section50}>
           <h3 style={styles.header_child}>⚙️ Thiết bị điều khiển</h3>
           <button
-            onClick={() => updateDevice("fan", !fan)}
+            onClick={() => handleUpdateDevice("fan", !fan)}
             style={styles.button}
           >
             Quạt: {fan ? "Bật" : "Tắt"}
           </button>
           <button
-            onClick={() => updateDevice("pump", !pump)}
+            onClick={() => handleUpdateDevice("pump", !pump)}
             style={styles.button}
           >
             Bơm: {pump ? "Bật" : "Tắt"}
@@ -76,7 +124,7 @@ function ControlPanel() {
           {[0, 1, 2].map((val) => (
             <button
               key={val}
-              onClick={() => updateDevice("setState", val)}
+              onClick={() => handleUpdateState(val)}
               style={{
                 ...styles.button,
                 backgroundColor: status === val ? "#ff4500" : "#ccc",
@@ -88,16 +136,6 @@ function ControlPanel() {
         </div>
       </div>
 
-      {/* <div style={styles.section}>
-        <h3>📡 Dữ liệu cảm biến</h3>
-        <p>
-          Gas Value: <strong>{gasValue}</strong>
-        </p>
-        <p>
-          Flame: <strong>{flame ? "🔥 Có lửa" : "✅ An toàn"}</strong>
-        </p>
-      </div> */}
-
       <div style={{ display: "flex", gap: "4%" }}>
         <div style={styles.section50}>
           <h3 style={styles.header_child}>📡 Dữ liệu cảm biến</h3>
@@ -107,12 +145,14 @@ function ControlPanel() {
           <p>
             Flame:{" "}
             <strong>
-              {flameValue > flameThreshold ? "🔥 Có lửa" : "✅ An toàn"}
+              {flameValue > flameThreshold
+                ? `${flameValue}  🔥 Có lửa`
+                : `${flameValue}  ✅ An toàn`}
             </strong>
           </p>
         </div>
         <div style={styles.section50}>
-          <form onSubmit={handleUpdate}>
+          <form onSubmit={handleUpdateThresholds}>
             <h4 style={styles.header_child}>⚙️ Cập nhật ngưỡng cảnh báo</h4>
             <div>
               <label>Ngưỡng Gas: </label>
