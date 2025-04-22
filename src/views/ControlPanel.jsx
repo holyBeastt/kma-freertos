@@ -3,6 +3,7 @@ import { db } from "../config/firebase";
 import { ref, set, onValue, push } from "firebase/database";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Avatar from "../components/avatar";
 
 function ControlPanel() {
   const [fan, setFan] = useState(0);
@@ -13,6 +14,7 @@ function ControlPanel() {
   const [logs, setLogs] = useState([]);
   const [gasThreshold, setGasThreshold] = useState(300);
   const [flameThreshold, setFlameThreshold] = useState(1);
+  const [showMenu, setShowMenu] = useState(false);
 
   // Cập nhật bật/tắt quạt và máy bơm
   const handleUpdateDevice = async (device, value) => {
@@ -123,6 +125,7 @@ function ControlPanel() {
     <>
       <div style={styles.container}>
         <h1 style={styles.header}>🚨 Bảng điều khiển hệ thống PCCC</h1>
+        <Avatar showMenu={showMenu} setShowMenu={setShowMenu} />
 
         <div style={{ display: "flex", gap: "4%" }}>
           <div style={styles.section50}>

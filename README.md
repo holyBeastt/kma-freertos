@@ -1,12 +1,28 @@
-# React + Vite
+🚨 Hệ thống Phòng Cháy Chữa Cháy (React + Vite)
+Ứng dụng giám sát và điều khiển hệ thống PCCC theo thời gian thực. Bao gồm các chức năng:
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+🔧 Tính năng chính
+✅ Bật / Tắt thiết bị: Quạt, máy bơm
 
-Currently, two official plugins are available:
+🔄 Chuyển đổi trạng thái hệ thống (0 - Bình thường, 1 - Cảnh báo, 2 - Khẩn cấp)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+📊 Điều chỉnh ngưỡng cảnh báo cho cảm biến khí gas và lửa
 
-## Expanding the ESLint configuration
+📝 Ghi nhật ký hoạt động (log) theo thời gian
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+📈 Hiển thị biểu đồ dữ liệu cảm biến (nếu có)
+
+🚀 Cài đặt & Chạy chương trình
+
+# Cài đặt các thư viện phụ thuộc
+
+npm install
+
+# Build project (nếu cần)
+
+npm run build
+
+# Chạy ở chế độ phát triển
+
+npm run dev
+⚠️ Yêu cầu: Node.js v16+ và npm đã cài đặt.

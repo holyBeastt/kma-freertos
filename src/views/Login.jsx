@@ -2,6 +2,7 @@ import { useState } from "react";
 import { db } from "../config/firebase";
 import { ref, get } from "firebase/database";
 import { useNavigate, Link } from "react-router-dom";
+import Swal from "sweetalert2";
 
 function Login() {
   const [username, setUsername] = useState("");
@@ -23,7 +24,12 @@ function Login() {
         localStorage.setItem("user", JSON.stringify(found[1]));
         navigate("/control");
       } else {
-        alert("Sai tài khoản hoặc mật khẩu.");
+        Swal.fire({
+          title: "Cảnh báo!",
+          text: "Sai tài khoản hoặc mật khẩu!",
+          icon: "warning",
+          confirmButtonText: "OK",
+        });
       }
     } catch (err) {
       console.error("Lỗi đăng nhập:", err);
