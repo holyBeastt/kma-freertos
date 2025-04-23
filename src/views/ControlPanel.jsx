@@ -4,6 +4,8 @@ import { ref, set, onValue, push } from "firebase/database";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Avatar from "../components/avatar";
+import { Link } from "react-router-dom";
+import { useSensor } from "../components/SensorContext";
 
 function ControlPanel() {
   const [fan, setFan] = useState(0);
@@ -15,6 +17,10 @@ function ControlPanel() {
   const [gasThreshold, setGasThreshold] = useState(300);
   const [flameThreshold, setFlameThreshold] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
+  const [alarmCheckDelay, setAlarmCheckDelay] = useState(10); // ví dụ mặc định là 10 giây
+
+  const { setGasValue: setGasCtxValue, setFlameValue: setFlameCtxValue } =
+    useSensor();
 
   // Cập nhật bật/tắt quạt và máy bơm
   const handleUpdateDevice = async (device, value) => {
@@ -31,8 +37,8 @@ function ControlPanel() {
       await set(ref(db, `control/${device}`), value);
 
       await push(ref(db, "logs"), {
-        timestamp: new Date().toLocaleString(),
-        message: messLog,
+        timestamp: Math.floor(Date.now() / 1000), // <-- chuyển sang epoch time (giây)
+        eventType: messLog,
       });
 
       toast.success(`🚀 ${messLog}`);
@@ -47,7 +53,7 @@ function ControlPanel() {
       await set(ref(db, `system/state`), value);
 
       await push(ref(db, "logs"), {
-        timestamp: new Date().toLocaleString(),
+        timestamp: Math.floor(Date.now() / 1000), // <-- chuyển sang epoch time (giây)
         message: `Trạng thái hệ thống đã được chuyển sang ${value}`,
       });
 
@@ -67,20 +73,30 @@ function ControlPanel() {
         ref(db, "/system/config/thresholds/flame"),
         Number(flameThreshold)
       );
+      await set(
+        ref(db, "/system/config/alarmCheckDelay"),
+        Number(alarmCheckDelay * 1000)
+      );
 
       // Ghi log sau khi cập nhật
       await push(ref(db, "logs"), {
-        timestamp: new Date().toLocaleString(),
-        message: `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}`,
+        timestamp: Math.floor(Date.now() / 1000), // <-- chuyển sang epoch time (giây)
+        message: `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}, t/g tự động = ${alarmCheckDelay} giây`,
       });
 
       toast.success(
-        `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}`
+        `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}, t/g tự động = ${alarmCheckDelay} giây`
       );
     } catch (error) {
       console.error("Lỗi khi cập nhật hoặc ghi log:", error);
     }
   };
+
+  function formatVNTime(epochSeconds) {
+    if (!epochSeconds) return "";
+    const date = new Date(epochSeconds * 1000); // chuyển từ giây → mili giây
+    return date.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+  }
 
   // Lấy trạng thái thiết bị
   useEffect(() => {
@@ -92,23 +108,46 @@ function ControlPanel() {
     const logsRef = ref(db, "logs"); // Ghi log
     const gasThresholdRef = ref(db, "system/config/thresholds/gas"); // Lấy, chỉnh sửa ngưỡng gas
     const flameThresholdRef = ref(db, "system/config/thresholds/flame"); // Lấy, chỉnh sửa ngưỡng lửa
+    const alarmCheckDelayRef = ref(db, "system/config/alarmCheckDelay"); // Lấy thời gian tự động chữa cháy
 
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || 0));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || 0));
     onValue(statusRef, (snapshot) => setStatus(snapshot.val() || 0));
-    onValue(gasRef, (snapshot) => setGasValue(snapshot.val() || 0));
-    onValue(flameRef, (snapshot) => setFlameValue(snapshot.val() || 0));
+    // onValue(gasRef, (snapshot) => setGasValue(snapshot.val() || 0));
+    // onValue(flameRef, (snapshot) => setFlameValue(snapshot.val() || 0));
+    onValue(gasRef, (snapshot) => {
+      const val = snapshot.val() || 0;
+      setGasValue(val); // cập nhật trong trang
+      setGasCtxValue(val); // cập nhật global context
+    });
+
+    onValue(flameRef, (snapshot) => {
+      const val = snapshot.val() || 0;
+      setFlameValue(val); // local
+      setFlameCtxValue(val); // context
+    });
+
     onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const logsArray = Object.values(data).reverse();
+      const logsArray = Object.values(data)
+        .map((log) => ({
+          ...log,
+          timestamp: formatVNTime(log.timestamp),
+        }))
+        .reverse();
       setLogs(logsArray);
     });
+
     onValue(gasThresholdRef, (snapshot) =>
       setGasThreshold(snapshot.val() || 0)
     );
     onValue(flameThresholdRef, (snapshot) =>
       setFlameThreshold(snapshot.val() || 0)
     );
+    onValue(alarmCheckDelayRef, (snapshot) => {
+      const val = snapshot.val();
+      setAlarmCheckDelay(typeof val === "number" ? val / 1000 : 0);
+    });
   }, []);
 
   useEffect(() => {
@@ -162,41 +201,61 @@ function ControlPanel() {
         </div>
 
         <div style={{ display: "flex", gap: "4%" }}>
-          <div style={styles.section50}>
-            <h3 style={styles.header_child}>📡 Dữ liệu cảm biến</h3>
+          <div style={{ ...styles.section50, display: "flex" }}>
+            <div style={{ width: "60%" }}>
+              <h3 style={styles.header_child}>📡 Dữ liệu cảm biến</h3>
 
-            <div style={styles.sensorRow}>
-              <span style={styles.label}>Gas Value:</span>
-              <strong
-                style={
-                  gasValue > gasThreshold
-                    ? { ...styles.alert, ...styles.blink }
-                    : styles.safe
-                }
-              >
-                {gasValue}{" "}
-                {gasValue > gasThreshold ? "🔴 Cảnh báo" : "🟢 An toàn"}
-              </strong>
+              <div style={styles.sensorRow}>
+                <span style={styles.label}>Gas Value:</span>
+                <strong
+                  style={
+                    gasValue > gasThreshold
+                      ? { ...styles.alert, ...styles.blink }
+                      : styles.safe
+                  }
+                >
+                  {gasValue}{" "}
+                  {gasValue > gasThreshold ? "🔴 Cảnh báo" : "🟢 An toàn"}
+                </strong>
+              </div>
+
+              <div style={styles.sensorRow}>
+                <span style={styles.label}>Flame:</span>
+                <strong
+                  style={
+                    flameValue > flameThreshold
+                      ? { ...styles.alert, ...styles.blink }
+                      : styles.safe
+                  }
+                >
+                  {flameValue > flameThreshold
+                    ? `${flameValue} 🔥 Có lửa`
+                    : `${flameValue} ✅ Không có lửa`}
+                </strong>
+              </div>
+
+              <p style={styles.timestamp}>
+                🕒 Cập nhật lúc: {new Date().toLocaleTimeString()}
+              </p>
             </div>
 
-            <div style={styles.sensorRow}>
-              <span style={styles.label}>Flame:</span>
-              <strong
-                style={
-                  flameValue > flameThreshold
-                    ? { ...styles.alert, ...styles.blink }
-                    : styles.safe
-                }
+            <div>
+              <Link
+                to="/Chart"
+                style={{
+                  padding: "12px 24px",
+                  backgroundColor: "#007BFF",
+                  color: "white",
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  lineHeight: "150px",
+                }}
               >
-                {flameValue > flameThreshold
-                  ? `${flameValue} 🔥 Có lửa`
-                  : `${flameValue} ✅ Không có lửa`}
-              </strong>
+                Xem biểu đồ 📈
+              </Link>
             </div>
-
-            <p style={styles.timestamp}>
-              🕒 Cập nhật lúc: {new Date().toLocaleTimeString()}
-            </p>
           </div>
 
           <div style={styles.section50}>
@@ -221,6 +280,32 @@ function ControlPanel() {
                     onChange={(e) => setFlameThreshold(e.target.value)}
                   />
                 </div>
+                <div style={{ ...styles.inputItem, position: "relative" }}>
+                  <label style={{ ...styles.label, width: "300px" }}>
+                    T/g tự động chữa cháy:
+                  </label>
+                  <input
+                    type="number"
+                    style={{
+                      ...styles.input,
+                      paddingRight: "40px",
+                      width: "100px",
+                    }}
+                    value={alarmCheckDelay}
+                    onChange={(e) => setAlarmCheckDelay(e.target.value)}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: "58px",
+                      top: "73%",
+                      transform: "translateY(-50%)",
+                      color: "#555",
+                    }}
+                  >
+                    giây
+                  </span>
+                </div>
               </div>
               <button type="submit" style={styles.formButton}>
                 Cập nhật
@@ -234,7 +319,7 @@ function ControlPanel() {
           <div style={styles.logBox}>
             {logs.map((log, idx) => (
               <div key={idx} style={styles.logItem}>
-                [{log.timestamp}] {log.message}
+                [{log.timestamp}] {log.eventType}
               </div>
             ))}
           </div>
@@ -311,7 +396,7 @@ const styles = {
   inputItem: {
     display: "flex",
     flexDirection: "column",
-    width: "190px",
+    width: "150px",
   },
   label: {
     fontWeight: "bold",
