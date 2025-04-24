@@ -3,7 +3,7 @@ import { db } from "../config/firebase";
 import { ref, set, onValue, push } from "firebase/database";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import Avatar from "../components/avatar";
+import Avatar from "../components/Avatar";
 import { Link } from "react-router-dom";
 import { useSensor } from "../components/SensorContext";
 
