@@ -19,6 +19,7 @@ const ChartPage = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       const timestamp = new Date().toLocaleTimeString();
+
       setData((prev) => [
         ...prev.slice(-9), // giữ tối đa 10 điểm
         {

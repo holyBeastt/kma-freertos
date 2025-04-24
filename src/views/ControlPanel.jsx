@@ -18,6 +18,7 @@ function ControlPanel() {
   const [flameThreshold, setFlameThreshold] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
   const [alarmCheckDelay, setAlarmCheckDelay] = useState(10); // ví dụ mặc định là 10 giây
+  const [systemStatus, setSystemStatus] = useState(0);
 
   const { setGasValue: setGasCtxValue, setFlameValue: setFlameCtxValue } =
     useSensor();
@@ -50,11 +51,13 @@ function ControlPanel() {
   // Cập nhật trạng thái hệ thống
   const handleUpdateState = async (value) => {
     try {
-      await set(ref(db, `system/state`), value);
+      await set(ref(db, `control/setState`), value);
+      await set(ref(db, `system/config/state`), value == 1 ? 2 : 0);
 
+      value = value == 0 ? "tự động" : "khẩn cấp";
       await push(ref(db, "logs"), {
         timestamp: Math.floor(Date.now() / 1000), // <-- chuyển sang epoch time (giây)
-        message: `Trạng thái hệ thống đã được chuyển sang ${value}`,
+        eventType: `Trạng thái hệ thống đã được chuyển sang ${value}`,
       });
 
       toast.success(`Trạng thái hệ thống đã được chuyển sang ${value}`);
@@ -102,13 +105,14 @@ function ControlPanel() {
   useEffect(() => {
     const fanRef = ref(db, "control/fan"); // Tắt bật quạt
     const pumpRef = ref(db, "control/pump"); // Tắt bật bơm
-    const statusRef = ref(db, "system/state"); // Lấy, chỉnh sửa trạng thái hệ thống
+    const statusRef = ref(db, "control/setState"); // Lấy, chỉnh sửa trạng thái hệ thống
     const gasRef = ref(db, "sensors/gas_value"); // Lấy giá trị gas
     const flameRef = ref(db, "sensors/flame_value"); // Lấy giá trị lửa
     const logsRef = ref(db, "logs"); // Ghi log
     const gasThresholdRef = ref(db, "system/config/thresholds/gas"); // Lấy, chỉnh sửa ngưỡng gas
     const flameThresholdRef = ref(db, "system/config/thresholds/flame"); // Lấy, chỉnh sửa ngưỡng lửa
     const alarmCheckDelayRef = ref(db, "system/config/alarmCheckDelay"); // Lấy thời gian tự động chữa cháy
+    const systemStateRef = ref(db, "system/config/state");
 
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || 0));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || 0));
@@ -148,6 +152,7 @@ function ControlPanel() {
       const val = snapshot.val();
       setAlarmCheckDelay(typeof val === "number" ? val / 1000 : 0);
     });
+    onValue(systemStateRef, (snapshot) => setSystemStatus(snapshot.val() || 0));
   }, []);
 
   useEffect(() => {
@@ -171,32 +176,60 @@ function ControlPanel() {
             <h3 style={styles.header_child}>⚙️ Thiết bị điều khiển</h3>
             <button
               onClick={() => handleUpdateDevice("fan", !fan)}
-              style={styles.button}
+              style={{
+                ...styles.button,
+                backgroundColor: fan ? "#ff4500" : "#ccc",
+              }}
             >
               Quạt: {fan ? "Bật" : "Tắt"}
             </button>
             <button
               onClick={() => handleUpdateDevice("pump", !pump)}
-              style={styles.button}
+              style={{
+                ...styles.button,
+                backgroundColor: pump ? "#ff4500" : "#ccc",
+              }}
             >
               Bơm: {pump ? "Bật" : "Tắt"}
             </button>
           </div>
 
-          <div style={styles.section50}>
-            <h3 style={styles.header_child}>🚦 Trạng thái hệ thống</h3>
-            {[0, 1, 2].map((val) => (
-              <button
-                key={val}
-                onClick={() => handleUpdateState(val)}
+          <div style={{ ...styles.section50, display: "flex", gap: "100px" }}>
+            <div>
+              <h3 style={styles.header_child}>🚦 Trạng thái hệ thống</h3>
+              <span
                 style={{
-                  ...styles.button,
-                  backgroundColor: status === val ? "#ff4500" : "#ccc",
+                  fontWeight: "bold",
+                  color:
+                    systemStatus === 2
+                      ? "red"
+                      : systemStatus === 1
+                      ? "orange"
+                      : "green",
                 }}
               >
-                Trạng thái {val}
-              </button>
-            ))}
+                {systemStatus === 2
+                  ? "🔴 Khẩn cấp"
+                  : systemStatus === 1
+                  ? "🟠 Bất thường"
+                  : "🟢 Bình thường"}
+              </span>
+            </div>
+            <div>
+              <h3 style={styles.header_child}>🚦 Điều khiển hệ thống</h3>
+              {[0, 1].map((val) => (
+                <button
+                  key={val}
+                  onClick={() => handleUpdateState(val)}
+                  style={{
+                    ...styles.button,
+                    backgroundColor: status === val ? "#ff4500" : "#ccc",
+                  }}
+                >
+                  {val === 0 ? "Tự động" : "Khẩn cấp"}{" "}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -223,12 +256,12 @@ function ControlPanel() {
                 <span style={styles.label}>Flame:</span>
                 <strong
                   style={
-                    flameValue > flameThreshold
+                    flameValue < flameThreshold
                       ? { ...styles.alert, ...styles.blink }
                       : styles.safe
                   }
                 >
-                  {flameValue > flameThreshold
+                  {flameValue < flameThreshold
                     ? `${flameValue} 🔥 Có lửa`
                     : `${flameValue} ✅ Không có lửa`}
                 </strong>
