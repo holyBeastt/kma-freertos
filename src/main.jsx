@@ -7,15 +7,10 @@ import { SensorProvider } from "./components/SensorContext.jsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/kma-freertos">
       <SensorProvider>
         <App />
       </SensorProvider>
     </BrowserRouter>
-    {/* <BrowserRouter basename="/kma-freertos">
-      <SensorProvider>
-        <App />
-      </SensorProvider>
-    </BrowserRouter> */}
   </StrictMode>
 );

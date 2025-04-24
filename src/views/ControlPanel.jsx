@@ -7,6 +7,8 @@ import Avatar from "../components/Avatar";
 import { Link } from "react-router-dom";
 import { useSensor } from "../components/SensorContext";
 
+let timeout; // Biến để lưu timeout
+
 function ControlPanel() {
   const [fan, setFan] = useState(0);
   const [pump, setPump] = useState(0);
@@ -20,8 +22,7 @@ function ControlPanel() {
   const [alarmCheckDelay, setAlarmCheckDelay] = useState(10); // ví dụ mặc định là 10 giây
   const [systemStatus, setSystemStatus] = useState(0);
   const [lastUpdateValue, setLastUpdateValue] = useState(0);
-
-  const [currentTime, setCurrentTime] = useState(0);
+  const [isUpdated, setIsUpdated] = useState(true); // Biến kiểm tra nếu có sự thay đổi
 
   const { setGasValue: setGasCtxValue, setFlameValue: setFlameCtxValue } =
     useSensor();
@@ -121,8 +122,6 @@ function ControlPanel() {
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || 0));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || 0));
     onValue(statusRef, (snapshot) => setStatus(snapshot.val() || 0));
-    // onValue(gasRef, (snapshot) => setGasValue(snapshot.val() || 0));
-    // onValue(flameRef, (snapshot) => setFlameValue(snapshot.val() || 0));
     onValue(gasRef, (snapshot) => {
       const val = snapshot.val() || 0;
       setGasValue(val); // cập nhật trong trang
@@ -135,9 +134,23 @@ function ControlPanel() {
       setFlameCtxValue(val); // context
     });
 
-    onValue(lastUpdateRef, (snapshot) =>
-      setLastUpdateValue(snapshot.val() || 0)
-    );
+    onValue(lastUpdateRef, (snapshot) => {
+      const newValue = snapshot.val() || 0;
+      setLastUpdateValue(newValue);
+
+      // Reset biến kiểm tra sự thay đổi mỗi khi có sự thay đổi mới
+      setIsUpdated(true);
+
+      // Nếu có sự thay đổi, hủy bỏ timeout cũ
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+
+      // Thiết lập timeout 5 giây để kiểm tra nếu không có sự thay đổi
+      timeout = setTimeout(() => {
+        setIsUpdated(false); // Nếu không có sự thay đổi trong 5 giây, đặt biến là false
+      }, 5000); // 5000 milliseconds = 5 seconds
+    });
 
     onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
@@ -161,24 +174,16 @@ function ControlPanel() {
       setAlarmCheckDelay(typeof val === "number" ? val / 1000 : 0);
     });
     onValue(systemStateRef, (snapshot) => setSystemStatus(snapshot.val() || 0));
+
+    // Clean up khi component bị unmount
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
   }, []);
 
-  // useEffect(() => {
-  //   const style = document.createElement("style");
-  //   style.innerHTML = `
-  //     @keyframes blinker {
-  //       50% { opacity: 0; }
-  //     }
-  //   `;
-  //   document.head.appendChild(style);
-  // }, []);
-
   useEffect(() => {
-    // Cập nhật thời gian hiện tại mỗi giây
-    const interval = setInterval(() => {
-      setCurrentTime(Math.floor(Date.now() / 1000));
-    }, 1000);
-
     // Thêm keyframe blink vào <head>
     const style = document.createElement("style");
     style.innerHTML = `
@@ -188,16 +193,13 @@ function ControlPanel() {
     `;
     document.head.appendChild(style);
 
-    // Cleanup: clearInterval và remove <style> nếu component bị unmount
     return () => {
-      clearInterval(interval);
       document.head.removeChild(style);
     };
   }, []);
 
-  const diff = currentTime - lastUpdateValue;
   let isUrgent;
-  if (diff > 5 || flameValue < flameThreshold || gasValue > gasThreshold) {
+  if (!isUpdated || flameValue < flameThreshold || gasValue > gasThreshold) {
     isUrgent = true;
   } else {
     isUrgent = false;
@@ -245,17 +247,16 @@ function ControlPanel() {
               <span
                 style={{
                   fontWeight: "bold",
-                  color:
-                    diff > 5
-                      ? "gray" // hoặc "red", nếu bạn muốn nổi bật
-                      : systemStatus === 2
-                      ? "red"
-                      : systemStatus === 1
-                      ? "orange"
-                      : "green",
+                  color: !isUpdated
+                    ? "gray" // hoặc "red", nếu bạn muốn nổi bật
+                    : systemStatus === 2
+                    ? "red"
+                    : systemStatus === 1
+                    ? "orange"
+                    : "green",
                 }}
               >
-                {diff > 5
+                {!isUpdated
                   ? "🟤 Hệ thống treo"
                   : systemStatus === 2
                   ? "🔴 Khẩn cấp"
