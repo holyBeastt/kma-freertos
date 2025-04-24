@@ -52,7 +52,7 @@ function ControlPanel() {
   const handleUpdateState = async (value) => {
     try {
       await set(ref(db, `control/setState`), value);
-      await set(ref(db, `system/config/state`), value == 1 ? 2 : 0);
+      await set(ref(db, `system/state`), value == 1 ? 2 : 0);
 
       value = value == 0 ? "tự động" : "khẩn cấp";
       await push(ref(db, "logs"), {
@@ -112,7 +112,7 @@ function ControlPanel() {
     const gasThresholdRef = ref(db, "system/config/thresholds/gas"); // Lấy, chỉnh sửa ngưỡng gas
     const flameThresholdRef = ref(db, "system/config/thresholds/flame"); // Lấy, chỉnh sửa ngưỡng lửa
     const alarmCheckDelayRef = ref(db, "system/config/alarmCheckDelay"); // Lấy thời gian tự động chữa cháy
-    const systemStateRef = ref(db, "system/config/state");
+    const systemStateRef = ref(db, "system/state");
 
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || 0));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || 0));
