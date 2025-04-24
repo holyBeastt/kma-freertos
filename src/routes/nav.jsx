@@ -7,14 +7,12 @@ import ChartPage from "../views/ChartPage";
 
 export default function nav() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/control" element={<ControlPanel />} />
-        <Route path="/change-password" element={<ChangePass />} />
-        <Route path="/chart" element={<ChartPage />} />
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/control" element={<ControlPanel />} />
+      <Route path="/change-password" element={<ChangePass />} />
+      <Route path="/chart" element={<ChartPage />} />
+    </Routes>
   );
 }
