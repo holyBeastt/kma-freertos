@@ -19,6 +19,9 @@ function ControlPanel() {
   const [showMenu, setShowMenu] = useState(false);
   const [alarmCheckDelay, setAlarmCheckDelay] = useState(10); // ví dụ mặc định là 10 giây
   const [systemStatus, setSystemStatus] = useState(0);
+  const [lastUpdateValue, setLastUpdateValue] = useState(0);
+
+  const [currentTime, setCurrentTime] = useState(0);
 
   const { setGasValue: setGasCtxValue, setFlameValue: setFlameCtxValue } =
     useSensor();
@@ -84,7 +87,7 @@ function ControlPanel() {
       // Ghi log sau khi cập nhật
       await push(ref(db, "logs"), {
         timestamp: Math.floor(Date.now() / 1000), // <-- chuyển sang epoch time (giây)
-        message: `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}, t/g tự động = ${alarmCheckDelay} giây`,
+        eventType: `Đã cập nhật ngưỡng: Gas = ${gasThreshold}, Flame = ${flameThreshold}, t/g tự động = ${alarmCheckDelay} giây`,
       });
 
       toast.success(
@@ -113,6 +116,7 @@ function ControlPanel() {
     const flameThresholdRef = ref(db, "system/config/thresholds/flame"); // Lấy, chỉnh sửa ngưỡng lửa
     const alarmCheckDelayRef = ref(db, "system/config/alarmCheckDelay"); // Lấy thời gian tự động chữa cháy
     const systemStateRef = ref(db, "system/state");
+    const lastUpdateRef = ref(db, "system/lastUpdate");
 
     onValue(fanRef, (snapshot) => setFan(snapshot.val() || 0));
     onValue(pumpRef, (snapshot) => setPump(snapshot.val() || 0));
@@ -130,6 +134,10 @@ function ControlPanel() {
       setFlameValue(val); // local
       setFlameCtxValue(val); // context
     });
+
+    onValue(lastUpdateRef, (snapshot) =>
+      setLastUpdateValue(snapshot.val() || 0)
+    );
 
     onValue(logsRef, (snapshot) => {
       const data = snapshot.val() || {};
@@ -155,7 +163,23 @@ function ControlPanel() {
     onValue(systemStateRef, (snapshot) => setSystemStatus(snapshot.val() || 0));
   }, []);
 
+  // useEffect(() => {
+  //   const style = document.createElement("style");
+  //   style.innerHTML = `
+  //     @keyframes blinker {
+  //       50% { opacity: 0; }
+  //     }
+  //   `;
+  //   document.head.appendChild(style);
+  // }, []);
+
   useEffect(() => {
+    // Cập nhật thời gian hiện tại mỗi giây
+    const interval = setInterval(() => {
+      setCurrentTime(Math.floor(Date.now() / 1000));
+    }, 1000);
+
+    // Thêm keyframe blink vào <head>
     const style = document.createElement("style");
     style.innerHTML = `
       @keyframes blinker {
@@ -163,11 +187,32 @@ function ControlPanel() {
       }
     `;
     document.head.appendChild(style);
+
+    // Cleanup: clearInterval và remove <style> nếu component bị unmount
+    return () => {
+      clearInterval(interval);
+      document.head.removeChild(style);
+    };
   }, []);
+
+  const diff = currentTime - lastUpdateValue;
+  let isUrgent;
+  if (diff > 5 || flameValue < flameThreshold || gasValue > gasThreshold) {
+    isUrgent = true;
+  } else {
+    isUrgent = false;
+  }
+
+  const containerStyle = {
+    padding: "40px",
+    backgroundColor: isUrgent ? "#fff3f3" : "#d2ebfc", // đổi màu tùy diff
+    minHeight: "100vh",
+    fontFamily: "Arial",
+  };
 
   return (
     <>
-      <div style={styles.container}>
+      <div style={containerStyle}>
         <h1 style={styles.header}>🚨 Bảng điều khiển hệ thống PCCC</h1>
         <Avatar showMenu={showMenu} setShowMenu={setShowMenu} />
 
@@ -201,14 +246,18 @@ function ControlPanel() {
                 style={{
                   fontWeight: "bold",
                   color:
-                    systemStatus === 2
+                    diff > 5
+                      ? "gray" // hoặc "red", nếu bạn muốn nổi bật
+                      : systemStatus === 2
                       ? "red"
                       : systemStatus === 1
                       ? "orange"
                       : "green",
                 }}
               >
-                {systemStatus === 2
+                {diff > 5
+                  ? "🟤 Hệ thống treo"
+                  : systemStatus === 2
                   ? "🔴 Khẩn cấp"
                   : systemStatus === 1
                   ? "🟠 Bất thường"
@@ -239,7 +288,7 @@ function ControlPanel() {
               <h3 style={styles.header_child}>📡 Dữ liệu cảm biến</h3>
 
               <div style={styles.sensorRow}>
-                <span style={styles.label}>Gas Value:</span>
+                <span style={styles.label}>Gas:</span>
                 <strong
                   style={
                     gasValue > gasThreshold
@@ -253,7 +302,7 @@ function ControlPanel() {
               </div>
 
               <div style={styles.sensorRow}>
-                <span style={styles.label}>Flame:</span>
+                <span style={styles.label}>Lửa:</span>
                 <strong
                   style={
                     flameValue < flameThreshold
@@ -364,16 +413,17 @@ function ControlPanel() {
 }
 
 const styles = {
-  container: {
-    padding: "40px",
-    backgroundColor: "#fff3f3",
-    minHeight: "100vh",
-    fontFamily: "Arial",
-  },
+  // container: {
+  //   padding: "40px",
+  //   backgroundColor: "#fff3f3",
+  //   minHeight: "100vh",
+  //   fontFamily: "Arial",
+  // },
   header: {
     textAlign: "center",
     color: "#b22222",
     marginBottom: "70px",
+    // textShadow: "0 0 10px rgba(255, 69, 0, 0.3)", // Đổ bóng chữ
   },
   header_child: {
     marginBottom: "20px",
