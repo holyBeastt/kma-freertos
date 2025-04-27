@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { db } from "../config/firebase";
 import { ref, set, onValue, push } from "firebase/database";
 import { ToastContainer, toast } from "react-toastify";
@@ -23,6 +23,9 @@ function ControlPanel() {
   const [systemStatus, setSystemStatus] = useState(0);
   const [lastUpdateValue, setLastUpdateValue] = useState(0);
   const [isUpdated, setIsUpdated] = useState(true); // Biến kiểm tra nếu có sự thay đổi
+  const [timeCurrent, setTimeCurrent] = useState(
+    new Date().toLocaleTimeString()
+  );
 
   const { setGasValue: setGasCtxValue, setFlameValue: setFlameCtxValue } =
     useSensor();
@@ -198,6 +201,14 @@ function ControlPanel() {
     };
   }, []);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeCurrent(new Date().toLocaleTimeString());
+    }, 1000); // cập nhật mỗi 1 giây
+
+    return () => clearInterval(timer); // Clear interval khi component unmount
+  }, []);
+
   let isUrgent;
   if (!isUpdated || flameValue < flameThreshold || gasValue > gasThreshold) {
     isUrgent = true;
@@ -248,7 +259,7 @@ function ControlPanel() {
                 style={{
                   fontWeight: "bold",
                   color: !isUpdated
-                    ? "gray" // hoặc "red", nếu bạn muốn nổi bật
+                    ? "gray"
                     : systemStatus === 2
                     ? "red"
                     : systemStatus === 1
@@ -317,9 +328,7 @@ function ControlPanel() {
                 </strong>
               </div>
 
-              <p style={styles.timestamp}>
-                🕒 Cập nhật lúc: {new Date().toLocaleTimeString()}
-              </p>
+              <p style={styles.timestamp}>🕒 Cập nhật lúc: {timeCurrent}</p>
             </div>
 
             <div>
